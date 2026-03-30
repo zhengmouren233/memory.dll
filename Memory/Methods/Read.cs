@@ -386,39 +386,24 @@ namespace Memory
 
         public T ReadMemory<T>(string address, string file = "")
         {
-            object ReadOutput = null;
-
-            switch (Type.GetTypeCode(typeof(T)))
+            unsafe
             {
-                case TypeCode.String:
-                    ReadOutput = ReadString(address, file);
-                    break;
-                case TypeCode.Int32:
-                    ReadOutput = ReadInt(address, file);
-                    break;
-                case TypeCode.Int64:
-                    ReadOutput = ReadLong(address, file);
-                    break;
-                case TypeCode.Byte:
-                    ReadOutput = ReadByte(address, file);
-                    break;
-                case TypeCode.Double:
-                    ReadOutput = ReadDouble(address, file);
-                    break;
-                case TypeCode.Decimal:
-                    ReadOutput = ReadFloat(address, file);
-                    break;
-                case TypeCode.UInt32:
-                    ReadOutput = ReadUInt(address, file);
-                    break;
-                default:
-                    break;
-            }
+                var T_type = typeof(T);
+                var T_size = sizeof(T);
 
-            if (ReadOutput != null)
-                return (T)Convert.ChangeType(ReadOutput, typeof(T));
-            else
-                return default(T);
+                var bytes = ReadBytes(address, T_size);
+
+                if (bytes == null || bytes.Length < T_size)
+                {
+                    return default;
+                }
+
+
+                fixed (byte* ptr = bytes)
+                {
+                    return *(T*)ptr;
+                }
+            }
         }
 
         ConcurrentDictionary<string, CancellationTokenSource> ReadTokenSrcs = new ConcurrentDictionary<string, CancellationTokenSource>();
