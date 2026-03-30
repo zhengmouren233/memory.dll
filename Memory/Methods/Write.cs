@@ -20,7 +20,7 @@ namespace Memory
         /// <param name="type">byte, 2bytes, bytes, float, int, string, double or long.</param>
         /// <param name="value">Value to freeze</param>
         /// <param name="file">ini file to read address from (OPTIONAL)</param>
-        public bool FreezeValue(string address, string type, string value, string file = "")
+        public bool FreezeValue<T>(string address, T value, string file = "") where T : unmanaged
         {
             CancellationTokenSource cts = new CancellationTokenSource();
 
@@ -38,7 +38,8 @@ namespace Memory
                     return false;
                 }
             }
-            else {
+            else
+            {
                 Debug.WriteLine("Adding Freezing Address " + address + " Value " + value);
             }
 
@@ -48,7 +49,7 @@ namespace Memory
             {
                 while (!cts.Token.IsCancellationRequested)
                 {
-                    WriteMemory(address, type, value, file);
+                    WriteMemory(address, value, file);
                     Thread.Sleep(25);
                 }
             },
@@ -87,10 +88,16 @@ namespace Memory
         ///<param name="file">path and name of .ini file (OPTIONAL)</param>
         ///<param name="stringEncoding">System.Text.Encoding.UTF8 (DEFAULT). Other options: ascii, unicode, utf32, utf7</param>
         ///<param name="RemoveWriteProtection">If building a trainer on an emulator (Ex: RPCS3) you'll want to set this to false</param>
-        public bool WriteMemory(string code, string type, string write, string file = "", System.Text.Encoding stringEncoding = null, bool RemoveWriteProtection = true)
+        public unsafe bool WriteMemory<T>(string code, T write, string file = "", System.Text.Encoding stringEncoding = null, bool RemoveWriteProtection = true) where T : unmanaged
         {
-            byte[] memory = new byte[4];
-            int size = 4;
+
+            var size = sizeof(T);
+            var memory = new byte[size];
+
+            fixed (byte* ptr = memory)
+            {
+                *(T*)ptr = write;
+            }
 
             UIntPtr theCode;
             theCode = GetCode(code, file);
@@ -98,89 +105,7 @@ namespace Memory
             if (theCode == null || theCode == UIntPtr.Zero || theCode.ToUInt64() < 0x10000)
                 return false;
 
-            if (type.ToLower() == "float")
-            {
-                if (float.TryParse(write, out float floatValue))
-                {
-                    write = Convert.ToString(floatValue);
-                    memory = BitConverter.GetBytes(Convert.ToSingle(write));
-                    size = 4;
-                }
-                else
-                    Debug.WriteLine($"ERROR: Failed to convert {floatValue} to float!");
-            }
-            else if (type.ToLower() == "int")
-            {
-                memory = BitConverter.GetBytes(Convert.ToInt32(write));
-                size = 4;
-            }
-            else if (type.ToLower() == "byte")
-            {
-                memory = new byte[1];
-                memory[0] = Convert.ToByte(write, 16);
-                size = 1;
-            }
-            else if (type.ToLower() == "2bytes")
-            {
-                memory = new byte[2];
-                memory[0] = (byte)(Convert.ToInt32(write) % 256);
-                memory[1] = (byte)(Convert.ToInt32(write) / 256);
-                size = 2;
-            }
-            else if (type.ToLower() == "bytes")
-            {
-                if (write.Contains(",") || write.Contains(" ")) //check if it's a proper array
-                {
-                    string[] stringBytes;
-                    if (write.Contains(","))
-                        stringBytes = write.Split(',');
-                    else
-                        stringBytes = write.Split(' ');
-                    //Debug.WriteLine("write:" + write + " stringBytes:" + stringBytes);
-
-                    int c = stringBytes.Count();
-                    memory = new byte[c];
-                    for (int i = 0; i < c; i++)
-                    {
-                        memory[i] = Convert.ToByte(stringBytes[i], 16);
-                    }
-                    size = stringBytes.Count();
-                }
-                else //wasnt array, only 1 byte
-                {
-                    memory = new byte[1];
-                    memory[0] = Convert.ToByte(write, 16);
-                    size = 1;
-                }
-            }
-            else if (type.ToLower() == "double")
-            {
-                memory = BitConverter.GetBytes(Convert.ToDouble(write));
-                size = 8;
-            }
-            else if (type.ToLower() == "long")
-            {
-                memory = BitConverter.GetBytes(Convert.ToInt64(write));
-                size = 8;
-            }
-            else if (type.ToLower() == "string")
-            {
-                if (stringEncoding == null)
-                    memory = System.Text.Encoding.UTF8.GetBytes(write);
-                else
-                    memory = stringEncoding.GetBytes(write);
-                size = memory.Length;
-            }
-
-            //Debug.Write("DEBUG: Writing bytes [TYPE:" + type + " ADDR:" + theCode + "] " + String.Join(",", memory) + Environment.NewLine);
-            MemoryProtection OldMemProt = 0x00;
-            bool WriteProcMem = false;
-            //if (RemoveWriteProtection)
-            //    ChangeProtection(code, MemoryProtection.ExecuteReadWrite, out OldMemProt, file); // change protection
-            WriteProcMem = WriteProcessMemory(mProc.Handle, theCode, memory, (UIntPtr)size, IntPtr.Zero);
-            //if (RemoveWriteProtection)
-            //    ChangeProtection(code, OldMemProt, out _, file); // restore
-            return WriteProcMem;
+            return WriteProcessMemory(mProc.Handle, theCode, memory, (UIntPtr)size, IntPtr.Zero);
         }
 
         /// <summary>
