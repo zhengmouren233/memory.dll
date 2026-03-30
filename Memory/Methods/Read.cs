@@ -384,25 +384,22 @@ namespace Memory
                 return "";
         }
 
-        public T ReadMemory<T>(string address, string file = "")
+        public unsafe T ReadMemory<T>(string address, string file = "")
         {
-            unsafe
+            var T_type = typeof(T);
+            var T_size = sizeof(T);
+
+            var bytes = ReadBytes(address, T_size);
+
+            if (bytes == null || bytes.Length < T_size)
             {
-                var T_type = typeof(T);
-                var T_size = sizeof(T);
-
-                var bytes = ReadBytes(address, T_size);
-
-                if (bytes == null || bytes.Length < T_size)
-                {
-                    return default;
-                }
+                return default;
+            }
 
 
-                fixed (byte* ptr = bytes)
-                {
-                    return *(T*)ptr;
-                }
+            fixed (byte* ptr = bytes)
+            {
+                return *(T*)ptr;
             }
         }
 
